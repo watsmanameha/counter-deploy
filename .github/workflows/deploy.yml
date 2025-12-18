@@ -21,7 +21,7 @@ jobs:
       - name: Sync repository to server
         run: |
           # rsync -e "ssh -i $HOME/.ssh/id_rsa -o StrictHostKeyChecking=no" --archive --compress --delete . ${{ secrets.REMOTE_DEST }}
-          rsync -e "ssh -i $HOME/.ssh/id_rsa -o StrictHostKeyChecking=no" -av --delete --exclude='.git' --exclude='node_modules' . ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:${{ secrets.DEPLOY_PATH }}
+          rsync -e "ssh -i $HOME/.ssh/id_rsa -o StrictHostKeyChecking=no" -av --delete --exclude='.git' --exclude='node_modules' . root@$5.101.51.5:${{ secrets.DEPLOY_PATH }}
         working-directory: ./
 
       - name: Run docker-compose on server
