@@ -21,11 +21,23 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts  # Не 600 — иначе rsync может не прочитать
 
       - name: Sync repository to server
         env:
-          RSYNC_RSH: "ssh -o StrictHostKeyChecking=no"
+          RSYNC_RSH: "ssh -o StrictHostKeyChecking=yes"  # Измените на yes
         run: |
-          rsync -av --delete --exclude='.git' --exclude='node_modules' ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:${{ secrets.DEPLOY_PATH }}
-        
+          rsync -av --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            ./ \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:${{ secrets.DEPLOY_PATH }}
+
+      - name: Run docker-compose on server
+        run: |
+          ssh \
+            -o StrictHostKeyChecking=yes \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} \
+            "cd ${{ secrets.DEPLOY_PATH }} && \
+             docker-compose pull --ignore-pull-failures || true && \
+             docker-compose up -d --build"
