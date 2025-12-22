@@ -36,3 +36,13 @@
 
 <img src="img/docker-orchestration-hands-on-lab_5.png" alt="Docker Orchestration Hands-on Lab/Inspect Node2" width="500"/>
 <img src="img/docker-orchestration-hands-on-lab_6.png" alt="Docker Orchestration Hands-on Lab/Inspect Node2" width="500"/>
+
+### Восстановилась ли работа запущенного сервиса на этом узле после перевода из Drain в Active?
+
+Нет, автоматически работа сервиса не восстанавливается. При переводе узла в режим Drain Docker Swarm корректно завершает и перераспределяет задачи сервисов на другие доступные узлы кластера. Когда узел возвращают обратно в режим Active, он лишь становится доступным для планировщика, но ранее эвакуированные задачи на него не возвращаются автоматически.
+
+### Что необходимо сделать, чтобы запустить работу службы на этом узле снова?
+
+```docker service update --force sleep-app```
+или
+```docker service scale sleep-app=N``` где N - количество запущенных контейнеров
