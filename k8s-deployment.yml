@@ -1,0 +1,87 @@
+---
+# Redis
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        command:
+          - redis-server
+          - --save 60 1
+          - --appendonly yes
+
+---
+# Redis Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+
+---
+# Flask
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: counter-app
+spec:
+  replicas: 4  # 4 реплики Flask приложения как требуется
+  selector:
+    matchLabels:
+      app: counter-app
+  template:
+    metadata:
+      labels:
+        app: counter-app
+    spec:
+      containers:
+      - name: app
+        image: counter-app:latest
+        imagePullPolicy: Never  # Использовать локальный образ, не загружать из registry
+        ports:
+        - containerPort: 8000
+        env:
+        - name: REDIS_HOST
+          value: "redis"
+        - name: REDIS_PORT
+          value: "6379"
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+
+---
+# LoadBalancer
+apiVersion: v1
+kind: Service
+metadata:
+  name: counter-app
+spec:
+  type: LoadBalancer  # В k3s автоматически предоставит внешний доступ
+  selector:
+    app: counter-app
+  ports:
+  - port: 80
+    targetPort: 8000

@@ -1,0 +1,100 @@
+version: "3.9"
+
+services:
+  # Flask
+  app:
+    image: ${DOCKER_REGISTRY:-localhost:5000}/counter-app:latest
+    env_file:
+      - ./backend/.env
+    ports:
+      # Порт публикуется через ingress network Swarm
+      # Встроенный load balancer автоматически распределяет трафик между репликами
+      - "80:8000"
+    networks:
+      - app-network
+    # Развертывание в режиме Swarm
+    deploy:
+      replicas: 4
+      # Режим endpoint: vip обеспечивает балансировку через виртуальный IP
+      endpoint_mode: vip
+      # Стратегия обновления: rolling update
+      update_config:
+        parallelism: 2      # Обновлять по 2 контейнера одновременно
+        delay: 10s          # Задержка между обновлениями
+        failure_action: rollback  # Откатиться при ошибке
+      # Политика перезапуска
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      # Ограничения ресурсов для каждой реплики
+      resources:
+        limits:
+          cpus: '0.50'      # Максимум 50% CPU
+          memory: 512M      # Максимум 512MB RAM
+        reservations:
+          cpus: '0.25'      # Резерв 25% CPU
+          memory: 256M      # Резерв 256MB RAM
+      # Размещение задач: распределить по разным нодам для отказоустойчивости
+      placement:
+        preferences:
+          - spread: node.id      # Равномерно распределить по нодам
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    # Конфигурация для сохранения данных
+    command:
+      - redis-server
+      - --save 60 1              # Сохранять на диск каждую минуту если была хотя бы 1 запись
+      - --appendonly yes         # Включить AOF (Append Only File) для надежности
+      - --appendfsync everysec   # Синхронизировать AOF каждую секунду
+      - --maxmemory 256mb        # Ограничение памяти
+      - --maxmemory-policy allkeys-lru  # Политика вытеснения при нехватке памяти
+    volumes:
+      # Именованный volume для персистентности данных
+      - redis_data:/data
+    networks:
+      - app-network
+    deploy:
+      replicas: 1
+      # Стратегия обновления
+      update_config:
+        parallelism: 1      # Обновлять по одному
+        delay: 10s
+        order: stop-first   # Сначала остановить старый, потом запустить новый
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      # Размещение: распределить по разным нодам
+      placement:
+        preferences:
+          - spread: node.id
+    # Healthcheck для мониторинга состояния
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+# Сети для изоляции сервисов
+networks:
+  app-network:
+    driver: overlay  # Overlay network для Swarm кластера
+    attachable: true
+
+# Volumes для персистентности данных
+volumes:
+  redis_data:
+    driver: local
